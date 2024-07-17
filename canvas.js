@@ -31,20 +31,38 @@ window.addEventListener('load', () => {
     }
     function draw(e) {
       if(!painting) return;
+
+      e.preventDefault();
+
       ctx.lineWidth = 1;
       ctx.lineCap = 'round';
 
-      ctx.lineTo(e.clientX, e.clientY);
+      let clientX, clientY;
+
+      if (e.type.includes('touch')) {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+      } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+      }
+
+      ctx.lineTo(clientX, clientY);
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(e.clientX, e.clientY);
+      ctx.moveTo(clientX, clientY);
 
     }
     //EventListeners
+    //for mouse
     canvas.addEventListener('mousedown', startPosition);
     canvas.addEventListener('mouseup', finishPosition);
     canvas.addEventListener('mousemove', draw);
 
+    //for touch
+    canvas.addEventListener('touchstart', startPosition);
+    canvas.addEventListener('touchend', finishPosition);
+    canvas.addEventListener('touchmove', draw);
 
 
 })
