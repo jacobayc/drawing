@@ -4,6 +4,30 @@
   box-sizing: border-box;
 }
 
+#controls {
+  width: 100%;
+  display: flex;
+  justify-content: space-around;
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 10px;
+  border-radius: 5px;
+}
+#controls div {
+  padding-top: 20px;
+  width: fit-content;
+  height:30px;
+}
+
+button {
+  border: 3px solid lavender;
+  padding: 5px;
+  background: none;
+  border-radius: 30px;
+}
+
 #canvas {
   border: 2px solid black;
 }

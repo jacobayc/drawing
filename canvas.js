@@ -2,23 +2,19 @@ window.addEventListener('load', () => {
   const canvas = document.querySelector("#canvas");
   const ctx = canvas.getContext("2d");
 
+  const colorPicker = document.querySelector("#colorPicker");
+  const penSize = document.querySelector("#penSize");
+  const clearCanvas = document.querySelector("#clearCanvas");
+
   // Resizing
     canvas.height = window.innerHeight;
     canvas.width = window.innerWidth;
 
-    // ctx.strokeStyle = "blue";
-    // ctx.strokeRect(100, 100, 200, 200)
-    // ctx.lineWidth = 10
+  // init
+    ctx.strokeStyle = colorPicker.value;
+    ctx.lineWidth = penSize.value;
 
-    // ctx.beginPath();
-    // ctx.moveTo(100, 100);
-    // ctx.lineTo(200, 100);
-    // ctx.lineTo(200, 150);
-    // ctx.lineTo(200, 300);
-    // ctx.closePath();
-    // ctx.stroke();
-
-    //Variables
+  //Variables
     let painting = false;
 
     function startPosition() {
@@ -27,15 +23,15 @@ window.addEventListener('load', () => {
     }
     function finishPosition() {
       painting = false;
-      ctx.beginPath();
+      ctx.beginPath(); // 마우스 up => 새로운 경로 시작하게 하여 선의 끝 분리
     }
     function draw(e) {
       if(!painting) return;
 
-      e.preventDefault();
+      e.preventDefault(); // 터치 기본 동작 막음
 
-      ctx.lineWidth = 1;
-      ctx.lineCap = 'round';
+      ctx.lineWidth = penSize.value;
+      ctx.lineCap = 'round'; // 선 끝 모양
 
       let clientX, clientY;
 
@@ -51,9 +47,12 @@ window.addEventListener('load', () => {
       ctx.stroke();
       ctx.beginPath();
       ctx.moveTo(clientX, clientY);
-
     }
-    //EventListeners
+    function clearCanvasContent() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+  //EventListeners
     //for mouse
     canvas.addEventListener('mousedown', startPosition);
     canvas.addEventListener('mouseup', finishPosition);
@@ -64,6 +63,17 @@ window.addEventListener('load', () => {
     canvas.addEventListener('touchend', finishPosition);
     canvas.addEventListener('touchmove', draw);
 
+     // change color
+    colorPicker.addEventListener('change', (e) => {
+      ctx.strokeStyle = e.target.value;
+    });
 
+    // change pen size
+    penSize.addEventListener('input', (e) => {
+      ctx.lineWidth = e.target.value;
+    });
+
+    // delete All
+   clearCanvas.addEventListener('click', clearCanvasContent);
 })
 
