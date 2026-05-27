@@ -634,6 +634,14 @@ window.addEventListener('DOMContentLoaded', () => {
     saveGalleryItems(items);
     renderGallery();
     saveModal.classList.remove("open");
+
+    // Clear and initialize drawing board after successful save
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    currentDrawingId = null; // Reset to a fresh blank document
+    saveState(); // push blank state to history stack
+    
+    showToast("💾 그림이 안전하게 저장된 후, 도화지가 깨끗이 정리되었습니다.");
   });
 
   // Render gallery list
