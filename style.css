@@ -642,10 +642,10 @@ input[type="range"]::-webkit-slider-thumb:hover {
   box-shadow: 0 6px 16px var(--accent-glow);
 }
 
-/* Toast Notifications */
+/* Toast Notifications - Positioned below the top toolbar to prevent click blocks */
 #toast-container {
   position: fixed;
-  top: 24px;
+  top: 100px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 1000;
@@ -670,8 +670,8 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 @keyframes toast-in-out {
-  0% { transform: translateY(-20px); opacity: 0; }
+  0% { transform: translateY(-10px); opacity: 0; }
   10% { transform: translateY(0); opacity: 1; }
   90% { transform: translateY(0); opacity: 1; }
-  100% { transform: translateY(-20px); opacity: 0; }
+  100% { transform: translateY(-10px); opacity: 0; }
 }
