@@ -698,16 +698,23 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   // --- 7. Toast Alerts UI ---
+  let toastTimeout = null;
   function showToast(message) {
+    // Clear previous toasts immediately so they don't stack downwards
+    toastContainer.innerHTML = "";
+    if (toastTimeout) {
+      clearTimeout(toastTimeout);
+    }
+
     const toast = document.createElement("div");
     toast.className = "toast";
     toast.innerText = message;
     toastContainer.appendChild(toast);
 
     // Auto-remove toast after animation finishes
-    setTimeout(() => {
+    toastTimeout = setTimeout(() => {
       toast.remove();
-    }, 3000);
+    }, 2800);
   }
 
   // Run on startup
