@@ -2,26 +2,150 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <link rel="stylesheet" href="./style.css">
-  <link rel="manifest" href="/manifest.json">
-  <title>Drawing</title>
+  <link rel="manifest" href="./manifest.json">
+  <title>Premium Creative Canvas</title>
 </head>
 <body>
-  <div id="controls">
-    <div>
-      <!-- <label for="colorPicker">색상 선택:</label> -->
-      <input type="color" id="colorPicker" value="#000000">
+
+  <!-- Scroll Viewport Wrapper for Infinite Height Feel -->
+  <main id="viewport-wrapper">
+    <div id="canvas-container">
+      <canvas id="canvas"></canvas>
     </div>
-    <div>
-      <!-- <label for="penSize">펜 크기:</label> -->
-      <input type="range" id="penSize" min="1" max="50" value="5">
+  </main>
+
+  <!-- Live Brush Circle Preview Indicator -->
+  <div id="brush-preview"></div>
+
+  <!-- Floating Responsive Toolbar Container -->
+  <div id="toolbar-container">
+    
+    <!-- Pen Options Settings Panel (Toggled by Brush settings button) -->
+    <div id="pen-settings-panel" class="settings-panel">
+      <!-- Brush Size Setting -->
+      <div class="setting-item">
+        <label>브러시 크기 <span id="brush-size-val">5px</span></label>
+        <input type="range" id="brushSizeSlider" min="1" max="100" value="5">
+      </div>
+      
+      <!-- Brush Opacity Setting -->
+      <div class="setting-item">
+        <label>투명도 <span id="brush-opacity-val">100%</span></label>
+        <input type="range" id="brushOpacitySlider" min="1" max="100" value="100">
+      </div>
+
+      <!-- Quick Harmonious Preset Colors -->
+      <div class="setting-item">
+        <label>추천 색상 팔레트</label>
+        <div class="color-palette" id="color-presets">
+          <!-- Populated in JS dynamically with premium colors -->
+        </div>
+      </div>
+
+      <!-- Advanced Hex/Color Picker -->
+      <div class="setting-item">
+        <label>상세 색상 피커</label>
+        <div class="advanced-picker-wrapper">
+          <input type="color" id="colorPicker" value="#1a1a1a">
+          <span class="color-hex-text" id="colorHexText">#1A1A1A</span>
+        </div>
+      </div>
     </div>
-    <div>
-      <button id="clearCanvas">Delete All</button>
+
+    <!-- Main Toolbar Row -->
+    <div class="toolbar">
+      <!-- Pen Type Tools -->
+      <button class="tool-btn active" id="tool-basic" title="일반 펜 (Basic)">
+        <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+      </button>
+      
+      <button class="tool-btn" id="tool-calligraphy" title="서예 펜 (Calligraphy)">
+        <svg viewBox="0 0 24 24"><path d="M21 3C19.78 3 18.12 4.14 16.5 5.5L18.5 7.5C19.86 5.88 21 4.22 21 3M15 7L4 18V20H6L17 9L15 7M3 21h18v2H3v-2z"/></svg>
+      </button>
+
+      <button class="tool-btn" id="tool-highlighter" title="형광펜 (Highlighter)">
+        <svg viewBox="0 0 24 24"><path d="M18.8 4.6c-.6-.6-1.5-.6-2.1 0L10.3 11l3.5 3.5 6.4-6.4c.5-.5.5-1.5-.1-2.1l-1.3-1.4zM3 17.2v3.8h3.8l8.3-8.3-3.8-3.8L3 17.2z"/></svg>
+      </button>
+
+      <button class="tool-btn" id="tool-spray" title="스프레이 (Spray)">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 14.5c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5.67 1.5 1.5 1.5 1.5-.67 1.5-1.5zm-5-3c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5.67 1.5 1.5 1.5 1.5-.67 1.5-1.5zm10 0c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5.67 1.5 1.5 1.5 1.5-.67 1.5-1.5zm-5-5c0-.83-.67-1.5-1.5-1.5S10 7.67 10 8.5s.67 1.5 1.5 1.5S13 9.33 13 8.5z"/></svg>
+      </button>
+
+      <button class="tool-btn" id="tool-eraser" title="지우개 (Eraser)">
+        <svg viewBox="0 0 24 24"><path d="M16.24 7.56l-5.66-5.66c-.78-.78-2.05-.78-2.83 0L2.09 7.56c-.78.78-.78 2.05 0 2.83l5.66 5.66c.39.39.9.59 1.41.59.51 0 1.02-.2 1.41-.59l5.66-5.66c.79-.78.79-2.05 0-2.83zm-8.48-4.24l5.66 5.66-5.66 5.66-5.66-5.66 5.66-5.66zM2 20h20v2H2v-2z"/></svg>
+      </button>
+
+      <div class="divider"></div>
+
+      <!-- Pen Settings Toggle Menu -->
+      <button class="tool-btn" id="btn-settings" title="브러시 설정">
+        <svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+      </button>
+
+      <!-- Scroll Pan Tool -->
+      <button class="tool-btn" id="tool-pan" title="화면 이동 (Pan/Scroll)">
+        <svg viewBox="0 0 24 24"><path d="M20.5 2c-.28 0-.53.11-.71.29L12 10.18 4.21 2.29C4.03 2.11 3.78 2 3.5 2 2.95 2 2 2.95 2 3.5c0 .28.11.53.29.71L10.18 12l-7.89 7.79c-.18.18-.29.43-.29.71 0 .55.95 1.5 1.5 1.5.28 0 .53-.11.71-.29L12 13.82l7.79 7.89c.18.18.43.29.71.29.55 0 1.5-.95 1.5-1.5 0-.28-.11-.53-.29-.71L13.82 12l7.89-7.79c.18-.18.29-.43.29-.71 0-.55-.95-1.5-1.5-1.5z"/></svg>
+      </button>
+
+      <div class="divider"></div>
+
+      <!-- Canvas Edit Actions -->
+      <button class="tool-btn" id="btn-undo" title="실행 취소 (Undo)">
+        <svg viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>
+      </button>
+
+      <button class="tool-btn" id="btn-redo" title="다시 실행 (Redo)">
+        <svg viewBox="0 0 24 24"><path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"/></svg>
+      </button>
+
+      <button class="tool-btn danger-btn" id="btn-clear" title="모두 지우기">
+        <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+      </button>
+
+      <div class="divider"></div>
+
+      <!-- File & Storage Actions -->
+      <button class="tool-btn" id="btn-save" title="그림 저장">
+        <svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
+      </button>
+
+      <button class="tool-btn" id="btn-gallery" title="갤러리 목록">
+        <svg viewBox="0 0 24 24"><path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2zm-11-4l2.03 2.71L16 11l4 5H8l3-4zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z"/></svg>
+      </button>
+    </div>
+
+  </div>
+
+  <!-- Modern Gallery Drawer Panel (Slides from Right) -->
+  <aside id="gallery-drawer">
+    <div class="drawer-header">
+      <h2>내 저장 갤러리</h2>
+      <button class="close-btn" id="btn-close-gallery">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+    </div>
+    <div class="drawer-content" id="gallery-list">
+      <!-- Cards rendered in JS dynamically -->
+    </div>
+  </aside>
+
+  <!-- Premium Save Dialog Modal -->
+  <div class="modal-overlay" id="save-modal">
+    <div class="modal-box">
+      <h3 class="modal-title">🎨 그림 저장하기</h3>
+      <input type="text" class="modal-input" id="save-title-input" placeholder="그림 제목을 입력해 주세요..." autocomplete="off">
+      <div class="modal-buttons">
+        <button class="modal-btn cancel" id="btn-save-cancel">취소</button>
+        <button class="modal-btn confirm" id="btn-save-confirm">저장 완료</button>
+      </div>
     </div>
   </div>
-  <canvas id="canvas"></canvas>
-  <script src="canvas.js"></script>
+
+  <!-- Toast Notification System -->
+  <div id="toast-container"></div>
+
+  <script src="./canvas.js"></script>
 </body>
 </html>
