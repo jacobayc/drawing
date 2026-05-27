@@ -66,6 +66,11 @@ window.addEventListener('DOMContentLoaded', () => {
   // Edge Auto-Scrolling variables
   let autoScrollInterval = null;
 
+  // Digital Ink Stabilizer variables
+  let lastStabilizedX = 0;
+  let lastStabilizedY = 0;
+  const STABILIZER_FACTOR = 0.22; // Weight factor: lower value = more stabilizer smoothing (reduces tremors)
+
   function startAutoScroll(direction) {
     if (autoScrollInterval) return;
     autoScrollInterval = setInterval(() => {
@@ -153,13 +158,8 @@ window.addEventListener('DOMContentLoaded', () => {
   let lastTime = 0;
   let lastWidth = brushSize;
 
-  function drawBezier(e) {
+  function drawBezier(clientX, clientY) {
     if (!isPainting) return;
-
-    // Get pointer coordinates relative to canvas
-    const rect = canvas.getBoundingClientRect();
-    const clientX = e.clientX - rect.left;
-    const clientY = e.clientY - rect.top;
 
     // Calculate time delta & speed for dynamic width
     const now = Date.now();
@@ -210,7 +210,11 @@ window.addEventListener('DOMContentLoaded', () => {
     const speed = dist / dt;
 
     let targetWidth = brushSize;
-    if (currentTool === 'calligraphy') {
+    if (currentTool === 'basic') {
+      // Finger Tapering (세필): Thinner at high speed, thicker at slow speed
+      const minWidth = brushSize * 0.22; // drop down to 22% thickness at max speed
+      targetWidth = Math.max(minWidth, brushSize * (1 / (1 + speed * 0.45)));
+    } else if (currentTool === 'calligraphy') {
       // High speed = thinner line, slow = thicker line (Calligraphic effect)
       const minWidth = brushSize * 0.3;
       const maxWidth = brushSize * 1.5;
@@ -303,6 +307,11 @@ window.addEventListener('DOMContentLoaded', () => {
       const rect = canvas.getBoundingClientRect();
       const clientX = e.clientX - rect.left;
       const clientY = e.clientY - rect.top;
+      
+      // Initialize stabilizer coordinates to starting touch point
+      lastStabilizedX = clientX;
+      lastStabilizedY = clientY;
+      
       points.push({ x: clientX, y: clientY, t: lastTime });
 
       // Live brush preview position
@@ -340,7 +349,15 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // Handle Drawing
     if (isPainting) {
-      drawBezier(e);
+      const rect = canvas.getBoundingClientRect();
+      const targetX = e.clientX - rect.left;
+      const targetY = e.clientY - rect.top;
+
+      // Exponential Moving Average Stabilizer (EMA Filter)
+      lastStabilizedX = lastStabilizedX + (targetX - lastStabilizedX) * STABILIZER_FACTOR;
+      lastStabilizedY = lastStabilizedY + (targetY - lastStabilizedY) * STABILIZER_FACTOR;
+
+      drawBezier(lastStabilizedX, lastStabilizedY);
       checkAndExpandCanvas(e.clientY);
       updateBrushPreview(e.clientX, e.clientY);
 
