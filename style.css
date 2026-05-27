@@ -101,10 +101,10 @@ body {
   z-index: 9999;
 }
 
-/* Floating Slim Toolbar */
+/* Floating Slim Toolbar at the Top */
 #toolbar-container {
   position: fixed;
-  bottom: 24px;
+  top: 16px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 100;
@@ -130,7 +130,7 @@ body {
   transition: var(--transition-normal);
 }
 
-/* Toolbar Sub-Panels for Pen Settings */
+/* Toolbar Sub-Panels for Pen Settings - Cascading Downwards */
 .settings-panel {
   background: var(--bg-surface);
   backdrop-filter: blur(20px);
@@ -144,12 +144,12 @@ body {
   gap: 12px;
   width: 280px;
   transition: transform var(--transition-normal), opacity var(--transition-normal);
-  transform-origin: bottom center;
-  transform: scale(0.9) translateY(10px);
+  transform-origin: top center;
+  transform: scale(0.9) translateY(-10px);
   opacity: 0;
   pointer-events: none;
   position: absolute;
-  bottom: 80px;
+  top: 64px;
 }
 
 .settings-panel.active {

@@ -62,6 +62,23 @@ window.addEventListener('DOMContentLoaded', () => {
   let isStylusActive = false; // flag if user is drawing with a physical pen
   let panStartY = 0;
   let panStartScrollTop = 0;
+  
+  // Edge Auto-Scrolling variables
+  let autoScrollInterval = null;
+
+  function startAutoScroll(direction) {
+    if (autoScrollInterval) return;
+    autoScrollInterval = setInterval(() => {
+      viewport.scrollTop += direction * 7;
+    }, 16); // smooth ~60fps scroll step
+  }
+
+  function stopAutoScroll() {
+    if (autoScrollInterval) {
+      clearInterval(autoScrollInterval);
+      autoScrollInterval = null;
+    }
+  }
 
   // History & Storage State
   let historyStack = [];
@@ -326,6 +343,16 @@ window.addEventListener('DOMContentLoaded', () => {
       drawBezier(e);
       checkAndExpandCanvas(e.clientY);
       updateBrushPreview(e.clientX, e.clientY);
+
+      // Smooth Edge Auto-Scrolling Check
+      const threshold = 100;
+      if (e.clientY > window.innerHeight - threshold) {
+        startAutoScroll(1); // Scroll down
+      } else if (e.clientY < threshold && viewport.scrollTop > 0) {
+        startAutoScroll(-1); // Scroll up
+      } else {
+        stopAutoScroll();
+      }
     }
   });
 
@@ -340,6 +367,7 @@ window.addEventListener('DOMContentLoaded', () => {
       points = [];
       saveState(); // Add to history stack
     }
+    stopAutoScroll();
     brushPreview.style.display = "none";
   }
 
@@ -414,15 +442,40 @@ window.addEventListener('DOMContentLoaded', () => {
 
   tools.forEach(t => {
     t.element.addEventListener("click", () => {
+      // Double tap/click to reset basic pen to defaults
+      if (currentTool === t.name) {
+        if (t.name === "basic") {
+          currentColor = "#000000";
+          brushSize = 5;
+          brushOpacity = 1;
+          
+          // Sync GUI Controls
+          brushSizeSlider.value = 5;
+          brushSizeVal.innerText = "5px";
+          brushOpacitySlider.value = 100;
+          brushOpacityVal.innerText = "100%";
+          colorPicker.value = "#000000";
+          colorHexText.innerText = "#000000";
+          updateActivePalette();
+          
+          showToast("🔄 일반 펜 설정이 기본값(검정색, 5px)으로 초기화되었습니다.");
+        }
+        return;
+      }
+
       tools.forEach(o => o.element.classList.remove("active"));
       t.element.classList.add("active");
       currentTool = t.name;
 
       if (currentTool === "pan") {
         canvas.classList.add("pan-mode");
-        showToast("✋ 화면 이동 모드 활성화 (두 손가락 스크롤도 가능)");
+        // Enable buttery smooth native momentum browser scrolling on Canvas in Pan Mode
+        canvas.style.touchAction = "pan-y";
+        showToast("✋ 화면 이동 모드 활성화 (화면을 위아래로 끌어당기세요)");
       } else {
         canvas.classList.remove("pan-mode");
+        // Lock touch events during drawing for bezier curve rendering
+        canvas.style.touchAction = "none";
         showToast(`🖌️ ${t.element.getAttribute("title")} 도구 선택`);
       }
       
