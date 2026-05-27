@@ -21,6 +21,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const toolHighlighter = document.querySelector("#tool-highlighter");
   const toolSpray = document.querySelector("#tool-spray");
   const toolEraser = document.querySelector("#tool-eraser");
+  const toolScribble = document.querySelector("#tool-scribble");
   const toolPan = document.querySelector("#tool-pan");
 
   // Action Buttons
@@ -52,7 +53,13 @@ window.addEventListener('DOMContentLoaded', () => {
   ];
 
   // Global Engine State
-  let currentTool = "basic"; // basic, calligraphy, highlighter, spray, eraser, pan
+  let currentTool = "basic"; // basic, calligraphy, highlighter, spray, eraser, scribble, pan
+
+  // Scribble (Ink-to-Text) State
+  let scribbleStrokes = [];       // Array of strokes, each stroke = { xs: [], ys: [], ts: [] }
+  let currentScribbleStroke = null;
+  let scribbleTimeout = null;
+  let scribbleSnapshotDataURL = null; // Canvas snapshot taken BEFORE scribble drawing begins
   let isPainting = false;
   let currentColor = "#000000";
   let brushSize = 5;
@@ -382,7 +389,20 @@ window.addEventListener('DOMContentLoaded', () => {
     if (isPainting) {
       isPainting = false;
       points = [];
-      saveState(); // Add to history stack
+
+      // Scribble mode: finish current stroke and start recognition countdown
+      if (currentTool === "scribble" && currentScribbleStroke && currentScribbleStroke.xs.length > 5) {
+        scribbleStrokes.push(currentScribbleStroke);
+        currentScribbleStroke = null;
+
+        // Reset recognition timer on each new stroke lift (wait for user to finish writing)
+        if (scribbleTimeout) clearTimeout(scribbleTimeout);
+        scribbleTimeout = setTimeout(() => {
+          recognizeScribble();
+        }, 1200); // 1.2s inactivity triggers recognition
+      } else {
+        saveState(); // Normal tools: add to history stack
+      }
     }
     stopAutoScroll();
     brushPreview.style.display = "none";
@@ -454,6 +474,7 @@ window.addEventListener('DOMContentLoaded', () => {
     { element: toolHighlighter, name: "highlighter" },
     { element: toolSpray, name: "spray" },
     { element: toolEraser, name: "eraser" },
+    { element: toolScribble, name: "scribble" },
     { element: toolPan, name: "pan" }
   ];
 
@@ -740,6 +761,171 @@ window.addEventListener('DOMContentLoaded', () => {
     toastTimeout = setTimeout(() => {
       toast.remove();
     }, 2800);
+  }
+
+  // --- 8. Scribble: Google Handwriting Recognition Engine ---
+
+  // Override pointerdown for scribble: take snapshot & start collecting stroke data
+  function handleScribblePointerDown(clientX, clientY) {
+    // Take a canvas snapshot BEFORE this scribble session begins (to restore later)
+    if (scribbleStrokes.length === 0) {
+      scribbleSnapshotDataURL = canvas.toDataURL();
+    }
+
+    currentScribbleStroke = { xs: [], ys: [], ts: [] };
+    const now = Date.now();
+    currentScribbleStroke.xs.push(clientX);
+    currentScribbleStroke.ys.push(clientY);
+    currentScribbleStroke.ts.push(now);
+  }
+
+  // Override pointermove for scribble: collect coordinates & draw blue guide
+  function handleScribblePointerMove(clientX, clientY) {
+    if (!currentScribbleStroke) return;
+
+    const now = Date.now();
+    currentScribbleStroke.xs.push(clientX);
+    currentScribbleStroke.ys.push(clientY);
+    currentScribbleStroke.ts.push(now);
+
+    // Draw temporary blue guide ink on canvas
+    const len = currentScribbleStroke.xs.length;
+    if (len >= 2) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = '#3b82f6';
+      ctx.globalAlpha = 0.6;
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(currentScribbleStroke.xs[len - 2], currentScribbleStroke.ys[len - 2]);
+      ctx.lineTo(currentScribbleStroke.xs[len - 1], currentScribbleStroke.ys[len - 1]);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // Hook scribble handlers into pointerdown & pointermove
+  const originalPointerDown = viewport.onpointerdown; // already handled via addEventListener
+  viewport.addEventListener("pointerdown", (e) => {
+    if (currentTool === "scribble" && activePointers.size < 2) {
+      const rect = canvas.getBoundingClientRect();
+      handleScribblePointerDown(e.clientX - rect.left, e.clientY - rect.top);
+    }
+  });
+
+  viewport.addEventListener("pointermove", (e) => {
+    if (currentTool === "scribble" && isPainting) {
+      const rect = canvas.getBoundingClientRect();
+      handleScribblePointerMove(e.clientX - rect.left, e.clientY - rect.top);
+    }
+  });
+
+  // Core Recognition Request to Google Handwriting API
+  async function recognizeScribble() {
+    if (scribbleStrokes.length === 0) return;
+
+    showToast("✍️ 손글씨를 분석 중입니다...");
+
+    // Build the ink array in the format Google expects: [[xs, ys, ts], ...]
+    const inkArray = scribbleStrokes.map(stroke => [
+      stroke.xs,
+      stroke.ys,
+      stroke.ts
+    ]);
+
+    // Calculate the bounding box of all strokes for text placement
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    scribbleStrokes.forEach(stroke => {
+      stroke.xs.forEach(x => { minX = Math.min(minX, x); maxX = Math.max(maxX, x); });
+      stroke.ys.forEach(y => { minY = Math.min(minY, y); maxY = Math.max(maxY, y); });
+    });
+
+    const strokeHeight = maxY - minY;
+    const fontSize = Math.max(18, Math.min(64, strokeHeight * 0.9));
+
+    try {
+      const response = await fetch('https://inputtools.google.com/request?itc=ko-t-i0-handwrit&app=demopage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          options: 'enable_pre_space',
+          requests: [{
+            writing_guide: {
+              writing_area_width: canvas.width,
+              writing_area_height: canvas.height
+            },
+            ink: inkArray,
+            language: 'ko'
+          }]
+        })
+      });
+
+      const data = await response.json();
+
+      // Parse recognized text from response
+      let recognizedText = '';
+      if (data && data[1] === 'SUCCESS' && data[0] && data[0][1] && data[0][1][0] && data[0][1][0][1]) {
+        recognizedText = data[0][1][0][1][0]; // top candidate
+      }
+
+      if (recognizedText) {
+        // Step 1: Restore the canvas to the pre-scribble snapshot (erasing blue guide strokes)
+        if (scribbleSnapshotDataURL) {
+          const img = new Image();
+          img.onload = () => {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0);
+
+            // Step 2: Render the recognized text at the scribble location
+            renderScribbleText(recognizedText, minX, minY, maxX, maxY, fontSize);
+          };
+          img.src = scribbleSnapshotDataURL;
+        } else {
+          renderScribbleText(recognizedText, minX, minY, maxX, maxY, fontSize);
+        }
+
+        showToast(`✅ 인식 결과: "${recognizedText}"`);
+      } else {
+        showToast("⚠️ 글씨를 인식하지 못했습니다. 다시 써 보세요.");
+        // Restore snapshot to remove failed scribble strokes
+        if (scribbleSnapshotDataURL) {
+          loadCanvasFromURL(scribbleSnapshotDataURL);
+        }
+      }
+    } catch (err) {
+      console.error('Scribble recognition error:', err);
+      showToast("❌ 인터넷 연결을 확인해 주세요.");
+      // Restore on error
+      if (scribbleSnapshotDataURL) {
+        loadCanvasFromURL(scribbleSnapshotDataURL);
+      }
+    }
+
+    // Reset scribble session
+    scribbleStrokes = [];
+    currentScribbleStroke = null;
+    scribbleSnapshotDataURL = null;
+  }
+
+  // Render clean font text onto the canvas at the scribble location
+  function renderScribbleText(text, minX, minY, maxX, maxY, fontSize) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = currentColor;
+    ctx.font = `600 ${fontSize}px 'Outfit', 'Inter', sans-serif`;
+    ctx.textBaseline = 'top';
+
+    // Render text starting at the left edge of the bounding box,
+    // vertically centered within the scribble region
+    const textY = minY + (maxY - minY - fontSize) / 2;
+    ctx.fillText(text, minX, textY);
+    ctx.restore();
+
+    saveState(); // Save the clean text render to history
   }
 
   // Run on startup
