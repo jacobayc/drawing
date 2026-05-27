@@ -162,16 +162,32 @@ body {
 .tool-btn {
   background: none;
   border: none;
-  width: 44px;
+  width: auto;
+  min-width: 44px;
   height: 44px;
+  padding: 0 14px;
   border-radius: var(--radius-round);
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   color: var(--text-muted);
   cursor: pointer;
   transition: var(--transition-fast);
   position: relative;
+}
+
+.tool-btn .btn-label {
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/* Keep circle shape for icon-only buttons */
+.tool-btn:not(:has(.btn-label)) {
+  padding: 0;
+  width: 44px;
 }
 
 .tool-btn svg {
