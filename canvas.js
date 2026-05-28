@@ -304,8 +304,8 @@ window.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Single finger touch drawing mode (unless user specifically activated hand tool)
-    if (currentTool !== "pan") {
+    // Single finger touch drawing mode (unless user specifically activated hand tool or scribble)
+    if (currentTool !== "pan" && currentTool !== "scribble") {
       isPainting = true;
       points = [];
       lastTime = Date.now();
@@ -507,13 +507,17 @@ window.addEventListener('DOMContentLoaded', () => {
 
       if (currentTool === "pan") {
         canvas.classList.add("pan-mode");
-        // Enable buttery smooth native momentum browser scrolling on Canvas in Pan Mode
         canvas.style.touchAction = "pan-y";
+        closeScribblePad();
         showToast("✋ 화면 이동 모드 활성화 (화면을 위아래로 끌어당기세요)");
+      } else if (currentTool === "scribble") {
+        canvas.classList.remove("pan-mode");
+        canvas.style.touchAction = "none";
+        openScribblePad();
       } else {
         canvas.classList.remove("pan-mode");
-        // Lock touch events during drawing for bezier curve rendering
         canvas.style.touchAction = "none";
+        closeScribblePad();
         showToast(`🖌️ ${t.element.getAttribute("title")} 도구 선택`);
       }
       
@@ -763,90 +767,130 @@ window.addEventListener('DOMContentLoaded', () => {
     }, 2800);
   }
 
-  // --- 8. Scribble: Google Handwriting Recognition Engine ---
+  // --- 8. Scribble: Handwriting Input Pad Engine ---
 
-  // Override pointerdown for scribble: take snapshot & start collecting stroke data
-  function handleScribblePointerDown(clientX, clientY) {
-    // Take a canvas snapshot BEFORE this scribble session begins (to restore later)
-    if (scribbleStrokes.length === 0) {
-      scribbleSnapshotDataURL = canvas.toDataURL();
-    }
+  const scribblePad = document.querySelector("#scribble-pad");
+  const scribbleCanvas = document.querySelector("#scribble-canvas");
+  const scribbleTextPreview = document.querySelector("#scribble-text-preview");
+  const scribbleClearPad = document.querySelector("#scribble-clear-pad");
+  const scribblePlaceText = document.querySelector("#scribble-place-text");
+  const scribbleClosePad = document.querySelector("#scribble-close-pad");
+  const sCtx = scribbleCanvas.getContext("2d");
 
-    currentScribbleStroke = { xs: [], ys: [], ts: [] };
-    const now = Date.now();
-    currentScribbleStroke.xs.push(clientX);
-    currentScribbleStroke.ys.push(clientY);
-    currentScribbleStroke.ts.push(now);
+  let scribbleAccumulatedText = "";
+  let scribblePadStrokes = [];     // strokes on the mini pad
+  let currentPadStroke = null;
+  let padRecognizeTimer = null;
+  let textCursorX = 50;   // Where text will be placed on main canvas
+  let textCursorY = 200;
+
+  // Initialize scribble pad canvas size
+  function initScribblePad() {
+    const rect = scribbleCanvas.getBoundingClientRect();
+    scribbleCanvas.width = rect.width;
+    scribbleCanvas.height = rect.height;
+    clearScribblePad();
   }
 
-  // Override pointermove for scribble: collect coordinates & draw blue guide
-  function handleScribblePointerMove(clientX, clientY) {
-    if (!currentScribbleStroke) return;
+  function clearScribblePad() {
+    sCtx.fillStyle = "#ffffff";
+    sCtx.fillRect(0, 0, scribbleCanvas.width, scribbleCanvas.height);
+    scribblePadStrokes = [];
+    currentPadStroke = null;
+  }
 
-    const now = Date.now();
-    currentScribbleStroke.xs.push(clientX);
-    currentScribbleStroke.ys.push(clientY);
-    currentScribbleStroke.ts.push(now);
+  function updateScribblePreview() {
+    scribbleTextPreview.innerHTML = 
+      (scribbleAccumulatedText || '<span style="color:var(--text-muted)">여기에 인식된 텍스트가 표시됩니다</span>') + 
+      '<span class="scribble-cursor">|</span>';
+  }
 
-    // Draw temporary blue guide ink on canvas
-    const len = currentScribbleStroke.xs.length;
-    if (len >= 2) {
-      ctx.save();
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.strokeStyle = '#3b82f6';
-      ctx.globalAlpha = 0.6;
-      ctx.lineWidth = 2.5;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.beginPath();
-      ctx.moveTo(currentScribbleStroke.xs[len - 2], currentScribbleStroke.ys[len - 2]);
-      ctx.lineTo(currentScribbleStroke.xs[len - 1], currentScribbleStroke.ys[len - 1]);
-      ctx.stroke();
-      ctx.restore();
+  // Open/Close pad
+  function openScribblePad() {
+    scribblePad.classList.add("open");
+    scribbleAccumulatedText = "";
+    updateScribblePreview();
+    // Delay init so layout is settled
+    setTimeout(initScribblePad, 100);
+    showToast("✍️ 캔버스를 탭하여 텍스트 삽입 위치를 지정한 뒤, 아래 패드에 글씨를 쓰세요.");
+  }
+
+  function closeScribblePad() {
+    scribblePad.classList.remove("open");
+    scribbleAccumulatedText = "";
+    if (padRecognizeTimer) clearTimeout(padRecognizeTimer);
+  }
+
+  // Pad drawing events (on mini canvas only)
+  let isPadDrawing = false;
+
+  scribbleCanvas.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    isPadDrawing = true;
+
+    const rect = scribbleCanvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    currentPadStroke = { xs: [x], ys: [y], ts: [Date.now()] };
+
+    sCtx.strokeStyle = "#3b82f6";
+    sCtx.lineWidth = 3;
+    sCtx.lineCap = "round";
+    sCtx.lineJoin = "round";
+    sCtx.beginPath();
+    sCtx.moveTo(x, y);
+
+    // Reset recognition timer while writing
+    if (padRecognizeTimer) clearTimeout(padRecognizeTimer);
+  });
+
+  scribbleCanvas.addEventListener("pointermove", (e) => {
+    if (!isPadDrawing || !currentPadStroke) return;
+    e.preventDefault();
+
+    const rect = scribbleCanvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    currentPadStroke.xs.push(x);
+    currentPadStroke.ys.push(y);
+    currentPadStroke.ts.push(Date.now());
+
+    sCtx.lineTo(x, y);
+    sCtx.stroke();
+  });
+
+  function endPadStroke(e) {
+    if (!isPadDrawing) return;
+    isPadDrawing = false;
+
+    if (currentPadStroke && currentPadStroke.xs.length > 3) {
+      scribblePadStrokes.push(currentPadStroke);
+    }
+    currentPadStroke = null;
+
+    // Start recognition countdown after user lifts finger
+    if (scribblePadStrokes.length > 0) {
+      if (padRecognizeTimer) clearTimeout(padRecognizeTimer);
+      padRecognizeTimer = setTimeout(() => {
+        recognizePadStrokes();
+      }, 1200);
     }
   }
 
-  // Hook scribble handlers into pointerdown & pointermove
-  const originalPointerDown = viewport.onpointerdown; // already handled via addEventListener
-  viewport.addEventListener("pointerdown", (e) => {
-    if (currentTool === "scribble" && activePointers.size < 2) {
-      const rect = canvas.getBoundingClientRect();
-      handleScribblePointerDown(e.clientX - rect.left, e.clientY - rect.top);
-    }
-  });
+  scribbleCanvas.addEventListener("pointerup", endPadStroke);
+  scribbleCanvas.addEventListener("pointercancel", endPadStroke);
 
-  viewport.addEventListener("pointermove", (e) => {
-    if (currentTool === "scribble" && isPainting) {
-      const rect = canvas.getBoundingClientRect();
-      handleScribblePointerMove(e.clientX - rect.left, e.clientY - rect.top);
-    }
-  });
+  // Google Handwriting Recognition for pad strokes
+  async function recognizePadStrokes() {
+    if (scribblePadStrokes.length === 0) return;
 
-  // Core Recognition Request to Google Handwriting API
-  async function recognizeScribble() {
-    if (scribbleStrokes.length === 0) return;
+    showToast("✍️ 손글씨 인식 중...");
 
-    showToast("✍️ 손글씨를 분석 중입니다...");
+    const inkArray = scribblePadStrokes.map(s => [s.xs, s.ys, s.ts]);
 
-    // Build the ink array in the format Google expects: [[xs, ys, ts], ...]
-    const inkArray = scribbleStrokes.map(stroke => [
-      stroke.xs,
-      stroke.ys,
-      stroke.ts
-    ]);
-
-    // Calculate the bounding box of all strokes for text placement
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    scribbleStrokes.forEach(stroke => {
-      stroke.xs.forEach(x => { minX = Math.min(minX, x); maxX = Math.max(maxX, x); });
-      stroke.ys.forEach(y => { minY = Math.min(minY, y); maxY = Math.max(maxY, y); });
-    });
-
-    const strokeHeight = maxY - minY;
-    const fontSize = Math.max(18, Math.min(64, strokeHeight * 0.9));
-
-    console.log('[Scribble] Sending', scribbleStrokes.length, 'strokes to Google API');
-    console.log('[Scribble] Ink payload:', JSON.stringify(inkArray).substring(0, 300));
+    console.log('[Scribble] Sending', scribblePadStrokes.length, 'pad strokes');
 
     try {
       const response = await fetch('https://inputtools.google.com/request?itc=ko-t-i0-handwrit&app=demopage', {
@@ -856,8 +900,8 @@ window.addEventListener('DOMContentLoaded', () => {
           options: 'enable_pre_space',
           requests: [{
             writing_guide: {
-              writing_area_width: canvas.width,
-              writing_area_height: canvas.height
+              writing_area_width: scribbleCanvas.width,
+              writing_area_height: scribbleCanvas.height
             },
             ink: inkArray,
             language: 'ko'
@@ -868,75 +912,81 @@ window.addEventListener('DOMContentLoaded', () => {
       const data = await response.json();
       console.log('[Scribble] API response:', JSON.stringify(data));
 
-      // Parse recognized text - Google response format:
-      // ["SUCCESS", [["input", ["candidate1", "candidate2", ...], [], {}]]]
-      // data[0] = "SUCCESS"
-      // data[1][0][1] = candidates array
       let recognizedText = '';
       if (data && data[0] === 'SUCCESS' && data[1] && data[1][0] && data[1][0][1]) {
-        recognizedText = data[1][0][1][0]; // top candidate
-        console.log('[Scribble] Recognized:', recognizedText);
-      } else {
-        console.warn('[Scribble] Unexpected response structure:', data);
+        recognizedText = data[1][0][1][0];
       }
 
       if (recognizedText) {
-        // Step 1: Restore the canvas to the pre-scribble snapshot (erasing blue guide strokes)
-        if (scribbleSnapshotDataURL) {
-          const img = new Image();
-          img.onload = () => {
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0);
-
-            // Step 2: Render the recognized text at the scribble location
-            renderScribbleText(recognizedText, minX, minY, maxX, maxY, fontSize);
-          };
-          img.src = scribbleSnapshotDataURL;
-        } else {
-          renderScribbleText(recognizedText, minX, minY, maxX, maxY, fontSize);
-        }
-
-        showToast(`✅ 인식 결과: "${recognizedText}"`);
+        scribbleAccumulatedText += recognizedText;
+        updateScribblePreview();
+        showToast(`✅ 인식: "${recognizedText}"`);
       } else {
-        showToast("⚠️ 글씨를 인식하지 못했습니다. 좀 더 크고 또렷하게 써 보세요.");
-        // Restore snapshot to remove failed scribble strokes
-        if (scribbleSnapshotDataURL) {
-          loadCanvasFromURL(scribbleSnapshotDataURL);
-        }
+        showToast("⚠️ 인식 실패. 좀 더 또렷하게 써 보세요.");
       }
     } catch (err) {
-      console.error('[Scribble] Recognition error:', err);
-      showToast("❌ API 연결 실패. 웹 서버(localhost)에서 실행 중인지 확인해 주세요.");
-      // Restore on error
-      if (scribbleSnapshotDataURL) {
-        loadCanvasFromURL(scribbleSnapshotDataURL);
-      }
+      console.error('[Scribble] Error:', err);
+      showToast("❌ API 연결 실패. 인터넷 연결을 확인하세요.");
     }
 
-    // Reset scribble session
-    scribbleStrokes = [];
-    currentScribbleStroke = null;
-    scribbleSnapshotDataURL = null;
+    // Clear pad for next input
+    clearScribblePad();
   }
 
-  // Render clean font text onto the canvas at the scribble location
-  function renderScribbleText(text, minX, minY, maxX, maxY, fontSize) {
+  // Set cursor position by tapping main canvas when in scribble mode
+  viewport.addEventListener("pointerdown", (e) => {
+    if (currentTool === "scribble" && scribblePad.classList.contains("open")) {
+      // Only handle taps on main canvas area (not on the pad itself)
+      if (!scribblePad.contains(e.target)) {
+        const rect = canvas.getBoundingClientRect();
+        textCursorX = e.clientX - rect.left;
+        textCursorY = e.clientY - rect.top;
+        showToast(`📍 텍스트 삽입 위치가 설정되었습니다.`);
+      }
+    }
+  });
+
+  // Place accumulated text on main canvas
+  scribblePlaceText.addEventListener("click", () => {
+    if (!scribbleAccumulatedText.trim()) {
+      showToast("⚠️ 삽입할 텍스트가 없습니다. 패드에 글씨를 써 주세요.");
+      return;
+    }
+
+    const fontSize = 24;
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
     ctx.fillStyle = currentColor;
     ctx.font = `600 ${fontSize}px 'Outfit', 'Inter', sans-serif`;
     ctx.textBaseline = 'top';
-
-    // Render text starting at the left edge of the bounding box,
-    // vertically centered within the scribble region
-    const textY = minY + (maxY - minY - fontSize) / 2;
-    ctx.fillText(text, minX, textY);
+    ctx.fillText(scribbleAccumulatedText, textCursorX, textCursorY);
     ctx.restore();
 
-    saveState(); // Save the clean text render to history
-  }
+    saveState();
+    showToast(`✅ "${scribbleAccumulatedText}" 텍스트가 캔버스에 삽입되었습니다.`);
+
+    // Move cursor X forward for next placement
+    const textWidth = ctx.measureText(scribbleAccumulatedText).width;
+    textCursorX += textWidth + 8;
+
+    scribbleAccumulatedText = "";
+    updateScribblePreview();
+  });
+
+  scribbleClearPad.addEventListener("click", () => {
+    clearScribblePad();
+    showToast("🗑️ 패드가 지워졌습니다.");
+  });
+
+  scribbleClosePad.addEventListener("click", () => {
+    closeScribblePad();
+    // Switch back to basic pen
+    tools[0].element.click();
+  });
+
+  // Auto-open pad when scribble tool is selected (hooked in tool switching)
+  // This is handled via the tool switching section where currentTool === "scribble"
 
   // Run on startup
   initCanvasSize();

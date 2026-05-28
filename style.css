@@ -675,3 +675,128 @@ input[type="range"]::-webkit-slider-thumb:hover {
   90% { transform: translateY(0); opacity: 1; }
   100% { transform: translateY(-10px); opacity: 0; }
 }
+
+/* Scribble Handwriting Input Pad */
+.scribble-pad {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  z-index: 250;
+  background: var(--bg-surface);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border-top: 1px solid var(--border-color);
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  transition: transform var(--transition-normal);
+  transform: translateY(100%);
+}
+
+.scribble-pad.open {
+  transform: translateY(0);
+}
+
+.scribble-pad-header {
+  padding: 12px 20px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.scribble-pad-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.scribble-pad-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.scribble-text-preview {
+  margin: 6px 20px;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.scribble-cursor {
+  color: var(--accent-color);
+  animation: blink-cursor 1s step-end infinite;
+  font-weight: 300;
+}
+
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+#scribble-canvas {
+  margin: 6px 20px;
+  border: 1.5px dashed rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.95);
+  height: 120px;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.scribble-pad-actions {
+  padding: 10px 20px 16px;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.scribble-action-btn {
+  padding: 8px 18px;
+  border-radius: var(--radius-round);
+  border: 1px solid var(--border-color);
+  background: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.scribble-action-btn:hover {
+  background-color: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.scribble-action-btn.primary {
+  background: var(--accent-gradient);
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 4px 12px var(--accent-glow);
+}
+
+.scribble-action-btn.primary:hover {
+  transform: translateY(-1px);
+}
+
+/* Text cursor marker on main canvas */
+#text-cursor-marker {
+  position: absolute;
+  width: 2px;
+  height: 28px;
+  background-color: var(--accent-color);
+  animation: blink-cursor 1s step-end infinite;
+  pointer-events: none;
+  display: none;
+  z-index: 50;
+}

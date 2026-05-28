@@ -157,6 +157,23 @@
   <!-- Toast Notification System -->
   <div id="toast-container"></div>
 
+  <!-- Scribble Handwriting Input Pad (Floating bottom overlay) -->
+  <div id="scribble-pad" class="scribble-pad">
+    <div class="scribble-pad-header">
+      <span class="scribble-pad-title">✍️ 필기 입력 패드</span>
+      <span class="scribble-pad-hint">아래 영역에 글씨를 쓰세요. 1초 후 자동 인식됩니다.</span>
+    </div>
+    <div class="scribble-text-preview" id="scribble-text-preview">
+      <span class="scribble-cursor">|</span>
+    </div>
+    <canvas id="scribble-canvas"></canvas>
+    <div class="scribble-pad-actions">
+      <button class="scribble-action-btn" id="scribble-clear-pad">패드 지우기</button>
+      <button class="scribble-action-btn primary" id="scribble-place-text">캔버스에 삽입 ✅</button>
+      <button class="scribble-action-btn" id="scribble-close-pad">닫기</button>
+    </div>
+  </div>
+
   <script src="./canvas.js"></script>
 </body>
 </html>
