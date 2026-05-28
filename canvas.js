@@ -354,8 +354,8 @@ window.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Handle Drawing
-    if (isPainting) {
+    // Handle Drawing (SKIP for scribble mode - handled separately)
+    if (isPainting && currentTool !== "scribble") {
       const rect = canvas.getBoundingClientRect();
       const targetX = e.clientX - rect.left;
       const targetY = e.clientY - rect.top;
@@ -845,6 +845,9 @@ window.addEventListener('DOMContentLoaded', () => {
     const strokeHeight = maxY - minY;
     const fontSize = Math.max(18, Math.min(64, strokeHeight * 0.9));
 
+    console.log('[Scribble] Sending', scribbleStrokes.length, 'strokes to Google API');
+    console.log('[Scribble] Ink payload:', JSON.stringify(inkArray).substring(0, 300));
+
     try {
       const response = await fetch('https://inputtools.google.com/request?itc=ko-t-i0-handwrit&app=demopage', {
         method: 'POST',
@@ -863,11 +866,18 @@ window.addEventListener('DOMContentLoaded', () => {
       });
 
       const data = await response.json();
+      console.log('[Scribble] API response:', JSON.stringify(data));
 
-      // Parse recognized text from response
+      // Parse recognized text - Google response format:
+      // ["SUCCESS", [["input", ["candidate1", "candidate2", ...], [], {}]]]
+      // data[0] = "SUCCESS"
+      // data[1][0][1] = candidates array
       let recognizedText = '';
-      if (data && data[1] === 'SUCCESS' && data[0] && data[0][1] && data[0][1][0] && data[0][1][0][1]) {
-        recognizedText = data[0][1][0][1][0]; // top candidate
+      if (data && data[0] === 'SUCCESS' && data[1] && data[1][0] && data[1][0][1]) {
+        recognizedText = data[1][0][1][0]; // top candidate
+        console.log('[Scribble] Recognized:', recognizedText);
+      } else {
+        console.warn('[Scribble] Unexpected response structure:', data);
       }
 
       if (recognizedText) {
@@ -889,15 +899,15 @@ window.addEventListener('DOMContentLoaded', () => {
 
         showToast(`✅ 인식 결과: "${recognizedText}"`);
       } else {
-        showToast("⚠️ 글씨를 인식하지 못했습니다. 다시 써 보세요.");
+        showToast("⚠️ 글씨를 인식하지 못했습니다. 좀 더 크고 또렷하게 써 보세요.");
         // Restore snapshot to remove failed scribble strokes
         if (scribbleSnapshotDataURL) {
           loadCanvasFromURL(scribbleSnapshotDataURL);
         }
       }
     } catch (err) {
-      console.error('Scribble recognition error:', err);
-      showToast("❌ 인터넷 연결을 확인해 주세요.");
+      console.error('[Scribble] Recognition error:', err);
+      showToast("❌ API 연결 실패. 웹 서버(localhost)에서 실행 중인지 확인해 주세요.");
       // Restore on error
       if (scribbleSnapshotDataURL) {
         loadCanvasFromURL(scribbleSnapshotDataURL);
